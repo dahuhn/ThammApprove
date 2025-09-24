@@ -1,0 +1,45 @@
+==============================================================
+                   THAMMAPPROVE SCHNELLSTART
+==============================================================
+
+VORHER EINMALIG MACHEN:
+------------------------
+1. Node.js von https://nodejs.org herunterladen und installieren
+2. Computer neu starten
+
+ERSTE INSTALLATION (nur 1x nötig):
+-----------------------------------
+1. Eingabeaufforderung öffnen
+2. Eingeben:
+   cd C:\Users\dhuhn\PyProjects\ThammApprove\backend
+   npm install
+   copy .env.example .env
+
+3. Dann:
+   cd ..\frontend
+   npm install
+   copy .env.example .env
+
+SYSTEM STARTEN:
+---------------
+Einfach Doppelklick auf: start-thamm-approve.bat
+
+ODER manuell:
+
+Terminal 1 (Backend):
+   cd C:\Users\dhuhn\PyProjects\ThammApprove\backend
+   npm run dev
+
+Terminal 2 (Frontend):
+   cd C:\Users\dhuhn\PyProjects\ThammApprove\frontend
+   npm start
+
+SYSTEM NUTZEN:
+--------------
+Browser öffnen und zu http://localhost:3100 gehen
+
+SYSTEM STOPPEN:
+---------------
+In beiden Terminal-Fenstern Strg+C drücken
+
+==============================================================

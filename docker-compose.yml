@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: thamm-approve-backend
+    ports:
+      - "3101:3101"
+    environment:
+      NODE_ENV: production
+      PORT: 3101
+      DATABASE_PATH: /data/database.sqlite
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret-in-production}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@thamm.com}
+      APPROVAL_EXPIRY_DAYS: ${APPROVAL_EXPIRY_DAYS:-7}
+    volumes:
+      - ./uploads:/app/uploads
+      - ./data:/data
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - thamm-approve-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: thamm-approve-frontend
+    ports:
+      - "3100:80"
+    environment:
+      REACT_APP_API_URL: ${API_URL:-http://localhost:3101}
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - thamm-approve-network
+
+networks:
+  thamm-approve-network:
+    driver: bridge
+
+volumes:
+  uploads:
+  data:
+  logs:

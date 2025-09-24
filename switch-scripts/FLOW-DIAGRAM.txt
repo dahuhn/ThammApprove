@@ -1,0 +1,152 @@
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║                          ThammApprove Switch Flow Diagram                        ║
+╚══════════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────┐
+│   Hot Folder    │
+│   Input PDFs    │
+│ /input/pdfs/*.pdf│
+└─────────┬───────┘
+          │
+          │ PDF File
+          ▼
+┌─────────────────────────────────────┐
+│    Script Element                   │
+│ submit-approval-compatible.js       │
+│                                     │
+│ Properties:                         │
+│ • apiUrl = http://172.16.0.66:3101  │
+│ • customerEmail = kunde@test.de     │
+│ • successName = "Success"           │
+│ • errorName = "Error"               │
+└─────────────┬───────────────────────┘
+              │
+              │
+        ┌─────┴─────┐
+        │           │
+        │ "Success" │ "Error"
+        │           │
+        ▼           ▼
+   ┌─────────┐  ┌─────────────┐
+   │Hold Job │  │Error Folder │
+   │60 sec   │  │/error/      │
+   │interval │  └─────────────┘
+   └────┬────┘
+        │
+        │ After 60s
+        ▼
+┌─────────────────────────────────────────────────────┐
+│            Script Element                           │
+│         check-approval-status-compatible.js         │
+│                                                     │
+│ Properties:                                         │
+│ • apiUrl = http://172.16.0.66:3101                  │
+│ • checkInterval = 60                                │
+│ • maxWaitTime = 7200 (2 hours)                     │
+│ • approvedName = "Approved"                         │
+│ • rejectedName = "Rejected"                         │
+│ • timeoutName = "Timeout"                           │
+│ • pendingName = "Pending"                           │
+└─────────────┬───┬───────┬───────┬───────────────────┘
+              │   │       │       │
+              │   │       │       │
+          ┌───┴──┬┴──────┬┴──────┬┴────────┐
+          │      │       │       │         │
+          │"App- │"Rej-  │"Time- │"Pending"│
+          │roved"│ected" │out"   │         │
+          │      │       │       │         │
+          ▼      ▼       ▼       ▼         │
+    ┌─────────┐ ┌─────────┐ ┌─────────┐    │
+    │Approved │ │Rejected │ │Timeout  │    │
+    │Folder   │ │Folder   │ │Folder   │    │
+    │/approved│ │/rejected│ │/timeout │    │
+    └────┬────┘ └────┬────┘ └─────────┘    │
+         │           │                     │
+         │           │                     │
+         ▼           ▼                     │
+    ┌─────────┐ ┌─────────────┐            │
+    │Further  │ │Send Reject  │            │
+    │Process  │ │Notification │            │
+    └─────────┘ └─────────────┘            │
+                                           │
+              ┌────────────────────────────┘
+              │
+              │ CRITICAL LOOP!
+              │ "Pending" must go back to Hold Job
+              │
+              ▼
+         ┌─────────┐
+         │Hold Job │◄─────────────────┐
+         │60 sec   │                  │
+         │interval │                  │
+         └────┬────┘                  │
+              │                       │
+              ▼                       │
+         [Check Status Script]───────┘
+              │ "Pending"
+              │
+         ┌────┴─── LOOP CONTINUES ────┐
+         │ Until approved/rejected/   │
+         │ timeout or max wait time   │
+         └────────────────────────────┘
+
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║                               CONNECTION NAMING                                  ║
+╠══════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                  ║
+║  In Switch Designer:                                                             ║
+║  1. Select Script Element                                                        ║
+║  2. Right-click on connection line → Properties                                  ║
+║  3. Set Name field:                                                              ║
+║                                                                                  ║
+║     Submit Script Connections:                                                   ║
+║     • Connection to Hold Job → Name: "Success"                                   ║
+║     • Connection to Error    → Name: "Error"                                     ║
+║                                                                                  ║
+║     Check Status Script Connections:                                             ║
+║     • Connection 1 → Name: "Approved"                                            ║
+║     • Connection 2 → Name: "Rejected"                                            ║
+║     • Connection 3 → Name: "Timeout"                                             ║
+║     • Success Connection (back to Hold Job) → Name: "Pending"                   ║
+║                                                                                  ║
+╚══════════════════════════════════════════════════════════════════════════════════╝
+
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║                              WEBHOOK ALTERNATIVE                                 ║
+╠══════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                  ║
+║  Instead of polling loop, use webhook for immediate response:                    ║
+║                                                                                  ║
+║  ┌─────────────┐    "Success"    ┌─────────────────────────┐                    ║
+║  │Submit Script├─────────────────►│HTTP Server Element      │                   ║
+║  └─────────────┘                 │webhook-receiver-        │                   ║
+║                                  │compatible.js            │                   ║
+║                                  │Port: 9090               │                   ║
+║                                  │Endpoint: /webhook       │                   ║
+║                                  └─────┬─────────┬─────────┘                   ║
+║                                        │         │                             ║
+║                                   "Approved" "Rejected"                        ║
+║                                        │         │                             ║
+║                                        ▼         ▼                             ║
+║                                 ┌─────────┐ ┌─────────┐                        ║
+║                                 │Approved │ │Rejected │                        ║
+║                                 │Folder   │ │Folder   │                        ║
+║                                 └─────────┘ └─────────┘                        ║
+║                                                                                  ║
+╚══════════════════════════════════════════════════════════════════════════════════╝
+
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║                                 DEBUG TIPS                                       ║
+╠══════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                  ║
+║  • Set Switch Log Level to DEBUG to see connection routing                       ║
+║  • Check logs for: "Looking for connection named 'Approved'"                    ║
+║  • Scripts will log: "Connection 1 is named 'Approved'"                         ║
+║  • If connection not found: "No connection named 'X' found, using fallback"     ║
+║                                                                                  ║
+║  Common Issues:                                                                  ║
+║  ❌ "Pending" connection goes to wrong element                                   ║
+║  ❌ Connection names have typos or extra spaces                                  ║
+║  ❌ Case sensitivity (use exact names: "Approved" not "approved")               ║
+║                                                                                  ║
+╚══════════════════════════════════════════════════════════════════════════════════╝

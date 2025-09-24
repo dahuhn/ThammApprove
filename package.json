@@ -1,0 +1,22 @@
+{
+  "name": "thamm-approve",
+  "version": "1.0.0",
+  "description": "PDF Approval System für Enfocus Switch Integration",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm --workspace=backend run dev",
+    "dev:frontend": "npm --workspace=frontend run dev",
+    "build": "npm run build:frontend && npm run build:backend",
+    "build:backend": "npm --workspace=backend run build",
+    "build:frontend": "npm --workspace=frontend run build",
+    "start": "npm --workspace=backend run start"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

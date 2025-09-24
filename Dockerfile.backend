@@ -1,0 +1,20 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY backend/package*.json ./
+RUN npm ci --only=production
+
+# Copy backend source
+COPY backend/ .
+
+# Create directories
+RUN mkdir -p logs uploads
+
+# Build TypeScript
+RUN npm run build
+
+EXPOSE 3101
+
+CMD ["npm", "start"]
