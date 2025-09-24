@@ -83,7 +83,7 @@ function jobArrived(s, job) {
 
                     job.log(LogLevel.Info, scriptName + ": Approval created with ID " + result.approvalId);
                     job.log(LogLevel.Info, scriptName + ": PDF uploaded to server for customer viewing");
-                    job.log(LogLevel.Info, scriptName + ": Original PDF stays in Switch for workflow processing");
+                    job.log(LogLevel.Info, scriptName + ": Original PDF waits in Switch folder until webhook processes it");
 
                     // Send notification if configured
                     if (notificationEmail) {
@@ -92,8 +92,8 @@ function jobArrived(s, job) {
 
                     // IMPORTANT: PDF is now stored in TWO places:
                     // 1. ThammApprove Server (customer can view/approve in browser)
-                    // 2. Switch Hold Element (original PDF for workflow processing)
-                    // Route to Success by NAME → Hold Element
+                    // 2. Switch Pending Folder (original PDF waits for webhook)
+                    // Route to Success by NAME → Pending Folder
                     routeByName(s, job, successName, scriptName);
                 } else {
                     job.log(LogLevel.Error, scriptName + ": API returned unsuccessful response");
