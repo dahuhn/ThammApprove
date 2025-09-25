@@ -3,6 +3,7 @@ import { Approval } from '../models/Approval';
 
 export interface SwitchWebhookPayload {
   jobId: string;
+  fileName: string;  // Original filename for Wait for Asset
   status: 'approved' | 'rejected';
   approvedBy?: string;
   approvedAt?: string;
@@ -37,6 +38,7 @@ export class WebhookService {
 
     const payload: SwitchWebhookPayload = {
       jobId: approval.jobId,
+      fileName: approval.fileName,  // Include original filename
       status: approval.status as 'approved' | 'rejected',
       token: approval.token
     };

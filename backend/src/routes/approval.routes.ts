@@ -42,6 +42,7 @@ router.post('/create', upload.single('pdf'), async (req, res) => {
 
     const {
       jobId,
+      fileName,  // Original filename from Switch
       customerEmail,
       customerName,
       switchFlowId,
@@ -55,7 +56,7 @@ router.post('/create', upload.single('pdf'), async (req, res) => {
 
     const approval = await createApproval({
       jobId,
-      fileName: req.file.originalname,
+      fileName: fileName || req.file.originalname,  // Use Switch filename if provided
       filePath: req.file.filename,
       customerEmail,
       customerName,

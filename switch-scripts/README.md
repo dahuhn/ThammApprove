@@ -2,7 +2,7 @@
 
 ## 📋 Übersicht
 
-Diese Scripts implementieren die moderne **Webhook-basierte** PDF-Freigabe in Enfocus Switch mit **Direct Processing**, die das veraltete Enfocus Review ersetzt.
+Diese Scripts implementieren die moderne **Webhook-basierte** PDF-Freigabe in Enfocus Switch mit **Wait for Asset Tool**, die das veraltete Enfocus Review ersetzt.
 
 ## 🎯 **Revolutionärer Unterschied:** < 1 Sekunde statt 60s Polling!
 
@@ -13,21 +13,22 @@ PDF → Polling alle 60s → Langsame Reaktion
 
 ### Neu (ThammApprove):
 ```
-PDF → Pending Folder → Webhook findet Job direkt → Sofortige Reaktion (< 200ms)
+PDF → Pending Folder → Webhook → Wait for Asset → Sofortige Reaktion (< 1s)
 ```
 
 ## ⚠️ WICHTIGE HINWEISE
 
 **Verwenden Sie DIESE Scripts (Switch-kompatibel, ES5, Named Connections):**
-- ✅ **submit-approval-compatible.js** (Updated für Direct Processing)
-- ✅ **webhook-receiver-direct.js** ⭐ **NEU - Direkte Webhook-Verarbeitung**
+- ✅ **submit-approval-compatible.js** (Updated mit fileName für Webhook)
+- ✅ **webhook-json-processor.js** ⭐ **NEU - Verarbeitet JSON vom Webhook Element**
 - ✅ **check-approval-status-compatible.js** (Fallback für Polling)
+- ✅ **Wait for Asset Tool** (aus Switch Appstore)
 
 **NICHT diese Scripts verwenden:**
 - ❌ ~~submit-approval.js~~ (modernes JavaScript)
 - ❌ ~~custom-hold-script.js~~ (zu komplex, nicht nötig)
-- ❌ ~~webhook-receiver-file-release.js~~ (file-basiert, zu umständlich)
-- ❌ ~~webhook-receiver-hold-release.js~~ (benötigt Hold Element)
+- ❌ ~~webhook-receiver-direct.js~~ (Webhook Element kann kein Script enthalten!)
+- ❌ ~~webhook-receiver-*~~ (alle alten Versionen)
 - ❌ ~~*-named.js~~ (moderne JS-Syntax, funktioniert nicht in Switch)
 
 ## 📝 Verfügbare Scripts
@@ -46,28 +47,37 @@ PDF → Pending Folder → Webhook findet Job direkt → Sofortige Reaktion (< 2
 - `successName`: Name der Success-Connection (default: "Success")
 - `errorName`: Name der Error-Connection (default: "Error")
 
-### 2. webhook-receiver-direct.js ⭐ **NEU - REVOLUTIONÄR**
-**Zweck:** Webhook empfangen und wartende Jobs DIREKT freigeben
-- **Eingabe:** JSON Webhook (approved/rejected)
-- **Verarbeitung:** Findet wartenden Job direkt mit `s.findJobByPrivateData()`
-- **Ausgabe:** Job sofort zu "Approved" oder "Rejected" Connection
-- **Named Connections:** Ja ✅
+### 2. webhook-json-processor.js ⭐ **NEU**
+**Zweck:** JSON vom Webhook Element verarbeiten
+- **Eingabe:** JSON-Datei vom Webhook Element
+- **Verarbeitung:** Extrahiert fileName und status aus JSON
+- **Ausgabe:** Setzt Private Data für Wait for Asset Tool
+- **Named Connections:** "Approved", "Rejected"
 - **ES5 kompatibel:** Ja ✅
 
-**Revolutionäre Features:**
-- **Atomare Operation:** Webhook → Job finden → Sofort freigeben
-- **< 200ms Reaktionszeit:** Kein File-Umweg, direkte Verarbeitung
-- **Keine temporären Dateien:** Alles im Speicher
-- **Ultra-robust:** Ein einziger atomarer Switch-Vorgang
-- **Maximum Performance:** Native `findJobByPrivateData()` + `sendTo()`
+**Key Features:**
+- **JSON-Parsing:** Liest Webhook-Payload aus JSON-Datei
+- **Dateiname-Extraktion:** fileName für Wait for Asset Tool
+- **Status-Routing:** Leitet zu korrekter Connection für Wait for Asset
+- **Private Data:** Setzt WebhookFileName, WebhookStatus etc.
 
-**Funktionalität:**
-```javascript
-var waitingJob = s.findJobByPrivateData("ApprovalId", payload.jobId);
-waitingJob.sendTo(targetConnection); // SOFORT!
+**Webhook-Payload Beispiel:**
+```json
+{
+  "jobId": "abc123",
+  "fileName": "Kundenauftrag_2025_01.pdf",
+  "status": "approved"
+}
 ```
 
-### 3. check-approval-status-compatible.js (Fallback)
+### 3. Wait for Asset Tool (aus Appstore)
+**Zweck:** Findet und gibt wartende PDFs basierend auf Dateiname frei
+- **Konfiguration:** Search Pattern mit fileName aus Webhook
+- **Asset Path:** Pending Folder
+- **Action:** Inject found asset
+- **Timeout:** Konfigurierbar (z.B. 60s)
+
+### 4. check-approval-status-compatible.js (Fallback)
 **Zweck:** Periodische Status-Prüfung (nur falls Webhook nicht funktioniert)
 - **Eingabe:** PDFs aus "pending" Folder
 - **Ausgabe:** "Approved", "Rejected", "Pending", "Timeout"
@@ -76,11 +86,13 @@ waitingJob.sendTo(targetConnection); // SOFORT!
 
 ## 🔧 Switch Flow Konfiguration
 
-### Empfohlener Flow (Direct Webhook Processing):
+### Empfohlener Flow (Wait for Asset):
 ```
-[Hot Folder] → [Submit Script] → [Pending Folder] → [Direct Webhook] → [Approved/Rejected]
-                                       ↑                    ↓
-                                [Webhook Element] ─────────┘
+FLOW 1: PDF-Einreichung
+[Hot Folder] → [Submit Script] → [Pending Folder]
+
+FLOW 2: Webhook-Processing
+[Webhook Element] → [JSON Processor] → [Wait for Asset] → [Approved/Rejected]
 ```
 
 ### Element-Konfiguration:
@@ -95,12 +107,23 @@ waitingJob.sendTo(targetConnection); // SOFORT!
 - **Keine spezielle Konfiguration nötig!**
 - PDFs warten hier bis Webhook sie direkt findet
 
-#### Webhook Element:
+#### Webhook Element (aus Appstore):
 - **Port:** 51088
 - **Path:** /scripting/ThammApprove
-- **Script:** webhook-receiver-direct.js
-- **Connection "Approved":** → Approved Folder
-- **Connection "Rejected":** → Rejected Folder
+- **Output:** JSON-Datei mit Webhook-Payload
+- **Connection:** → JSON Processor Script
+
+#### JSON Processor Script:
+- **Script:** webhook-json-processor.js
+- **Connection "Approved":** → Wait for Asset (für approved PDFs)
+- **Connection "Rejected":** → Wait for Asset (für rejected PDFs)
+
+#### Wait for Asset Tool:
+- **Asset Path:** Pending Folder
+- **Search Pattern:** `{Private:WebhookFileName}` oder direkter Dateiname
+- **Action:** Inject found asset
+- **Timeout:** 60 seconds
+- **Connection:** → Final Approved/Rejected Folders
 
 ## 🚀 Installation
 
@@ -122,19 +145,19 @@ waitingJob.sendTo(targetConnection); // SOFORT!
 
 ## ⚡ Performance
 
-- **Reaktionszeit:** **< 200ms** (statt 60s+) 🚀
-- **CPU-Last:** **Minimal** (keine Timer, keine Files)
-- **Skalierung:** **Unbegrenzt** (atomare Operations)
+- **Reaktionszeit:** **< 1 Sekunde** (statt 60s+) 🚀
+- **CPU-Last:** **Minimal** (Wait for Asset optimiert)
+- **Skalierung:** **Unbegrenzt** (webhook-basiert)
 - **Wartende Jobs:** **Unbegrenzt** (normaler Folder)
 
 ## 🔑 Wichtige Features
 
-### Direct Processing Logic ⭐
-- **Kein Hold Element nötig:** Normaler Folder genügt
-- **Atomare Webhook-Verarbeitung:** Ein einziger Switch-Vorgang
-- **Keine temporären Dateien:** Alles im Speicher
-- **Ultra-Performance:** Native `findJobByPrivateData()` Funktion
-- **Maximum Robustheit:** Keine Race Conditions oder File-I/O
+### Wait for Asset Processing ⭐
+- **Korrekte Switch-Integration:** Webhook Element wie vorgesehen verwendet
+- **Intelligentes Asset-Matching:** Wait for Asset findet PDFs nach Dateiname
+- **Webhook mit fileName:** Backend sendet Original-Dateiname im Webhook
+- **Robustes Timeout-Handling:** Wait for Asset mit konfigurierbarem Timeout
+- **Keine Hacks nötig:** Nutzt nur Standard Switch-Komponenten
 
 ### Named Connections
 Alle Scripts nutzen **Named Connections** statt Nummern:

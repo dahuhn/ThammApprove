@@ -29,6 +29,9 @@ function jobArrived(s, job) {
         var fileName = job.getName();
         var jobId = job.getUniqueId();
 
+        // Store original filename for later webhook processing
+        job.setPrivateData("OriginalFileName", fileName);
+
         // Prepare metadata
         var metadata = {
             submitTime: new Date().toISOString(),
@@ -57,6 +60,7 @@ function jobArrived(s, job) {
         var formData = new FormData();
         formData.addFile("pdf", jobPath);
         formData.addField("jobId", jobId);
+        formData.addField("fileName", fileName);  // WICHTIG: Original-Dateiname für Webhook
         formData.addField("customerEmail", customerEmail);
         formData.addField("customerName", customerName || "");
         formData.addField("switchFlowId", s.getFlowId() || "");
