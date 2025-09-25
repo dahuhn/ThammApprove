@@ -1,0 +1,25 @@
+{
+  "name": "thamm-approve-switch-scripts",
+  "version": "1.0.0",
+  "description": "TypeScript scripts for Enfocus Switch integration with ThammApprove system",
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "clean": "rimraf dist",
+    "prebuild": "npm run clean"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "rimraf": "^5.0.0"
+  },
+  "keywords": [
+    "enfocus",
+    "switch",
+    "typescript",
+    "approval",
+    "workflow"
+  ],
+  "author": "Thamm",
+  "license": "MIT"
+}

@@ -22,11 +22,11 @@ function jobArrived(s, job) {
     var scriptName = "Webhook JSON Processor";
 
     try {
-        s.log(LogLevel.Info, scriptName + ": Processing webhook JSON");
+        s.log(1, scriptName + ": Processing webhook JSON");  // 1 = Info
 
         // JSON-Inhalt lesen
         var jsonContent = job.readEntireFile();
-        s.log(LogLevel.Debug, scriptName + ": Raw JSON: " + jsonContent);
+        s.log(1, scriptName + ": Raw JSON: " + jsonContent);  // 1 = Info (Debug->Info)
 
         // JSON parsen
         var webhookData = JSON.parse(jsonContent);
@@ -42,9 +42,9 @@ function jobArrived(s, job) {
             return;
         }
 
-        s.log(LogLevel.Info, scriptName + ": Processing approval for file: " + webhookData.fileName);
-        s.log(LogLevel.Info, scriptName + ": Status: " + webhookData.status);
-        s.log(LogLevel.Info, scriptName + ": JobId: " + webhookData.jobId);
+        s.log(1, scriptName + ": Processing approval for file: " + webhookData.fileName);  // 1 = Info
+        s.log(1, scriptName + ": Status: " + webhookData.status);  // 1 = Info
+        s.log(1, scriptName + ": JobId: " + webhookData.jobId);  // 1 = Info
 
         // Private Data setzen für nachfolgende Elemente
         job.setPrivateData("WebhookFileName", webhookData.fileName);
@@ -64,18 +64,18 @@ function jobArrived(s, job) {
 
         // Status-basiertes Routing zu Named Connections
         if (webhookData.status === 'approved') {
-            s.log(LogLevel.Info, scriptName + ": Routing to 'Approved' for Wait for Asset");
+            s.log(1, scriptName + ": Routing to 'Approved' for Wait for Asset");  // 1 = Info
             routeByName(s, job, "Approved", scriptName);
         } else if (webhookData.status === 'rejected') {
-            s.log(LogLevel.Info, scriptName + ": Routing to 'Rejected' for Wait for Asset");
+            s.log(1, scriptName + ": Routing to 'Rejected' for Wait for Asset");  // 1 = Info
             routeByName(s, job, "Rejected", scriptName);
         } else {
-            s.log(LogLevel.Error, scriptName + ": Unknown status: " + webhookData.status);
+            s.log(3, scriptName + ": Unknown status: " + webhookData.status);  // 3 = Error
             routeByName(s, job, "Error", scriptName);
         }
 
     } catch (error) {
-        s.log(LogLevel.Error, scriptName + ": Error processing webhook JSON - " + error.toString());
+        s.log(3, scriptName + ": Error processing webhook JSON - " + error.toString());  // 3 = Error
         job.fail(scriptName + ": " + error.toString());
     }
 }
@@ -87,7 +87,7 @@ function routeByName(s, job, targetName, scriptName) {
     // Get number of outgoing connections
     var numConnections = s.getOutgoingConnectionCount ? s.getOutgoingConnectionCount() : 10;
 
-    job.log(LogLevel.Debug, scriptName + ": Looking for connection named '" + targetName + "'");
+    job.log(1, scriptName + ": Looking for connection named '" + targetName + "'");  // 1 = Info (Debug->Info)
 
     // Check each connection by number and get its name
     for (var i = 1; i <= numConnections; i++) {
@@ -95,11 +95,11 @@ function routeByName(s, job, targetName, scriptName) {
             var connectionName = s.getOutgoingName ? s.getOutgoingName(i) : null;
 
             if (connectionName) {
-                job.log(LogLevel.Debug, scriptName + ": Connection " + i + " is named '" + connectionName + "'");
+                job.log(1, scriptName + ": Connection " + i + " is named '" + connectionName + "'");  // 1 = Info (Debug->Info)
 
                 // Check if this is our target (case-insensitive, trimmed) - ES5 trim
                 if (connectionName.replace(/^\s+|\s+$/g, '').toLowerCase() === targetName.replace(/^\s+|\s+$/g, '').toLowerCase()) {
-                    job.log(LogLevel.Info, scriptName + ": Routing to '" + targetName + "' via Connection " + i);
+                    job.log(1, scriptName + ": Routing to '" + targetName + "' via Connection " + i);  // 1 = Info
                     job.sendToData(i);
                     return;
                 }
@@ -111,13 +111,13 @@ function routeByName(s, job, targetName, scriptName) {
 
     // Fallback routing based on status
     if (targetName === "Approved") {
-        job.log(LogLevel.Info, scriptName + ": Routing to Connection 1 (Approved)");
+        job.log(1, scriptName + ": Routing to Connection 1 (Approved)");  // 1 = Info
         job.sendToData(1);
     } else if (targetName === "Rejected") {
-        job.log(LogLevel.Info, scriptName + ": Routing to Connection 2 (Rejected)");
+        job.log(1, scriptName + ": Routing to Connection 2 (Rejected)");  // 1 = Info
         job.sendToData(2);
     } else {
-        job.log(LogLevel.Warning, scriptName + ": No matching connection found for '" + targetName + "', using Error");
+        job.log(2, scriptName + ": No matching connection found for '" + targetName + "', using Error");  // 2 = Warning
         job.sendToData(Connection.Level.Error);
     }
 }
@@ -126,12 +126,12 @@ function routeByName(s, job, targetName, scriptName) {
  * Script-Start
  */
 function scriptStarted(s) {
-    s.log(LogLevel.Info, "Webhook JSON Processor started");
+    s.log(1, "Webhook JSON Processor started");  // 1 = Info
 }
 
 /**
  * Script-Stop
  */
 function scriptStopped(s) {
-    s.log(LogLevel.Info, "Webhook JSON Processor stopped");
+    s.log(1, "Webhook JSON Processor stopped");  // 1 = Info
 }

@@ -25,24 +25,24 @@ export interface ApprovalAttributes {
 interface ApprovalCreationAttributes extends Optional<ApprovalAttributes, 'id' | 'status' | 'createdAt' | 'updatedAt'> {}
 
 export class Approval extends Model<ApprovalAttributes, ApprovalCreationAttributes> implements ApprovalAttributes {
-  public id!: string;
-  public jobId!: string;
-  public fileName!: string;
-  public filePath!: string;
-  public customerEmail!: string;
-  public customerName?: string;
-  public status!: 'pending' | 'approved' | 'rejected';
-  public token!: string;
-  public comments?: string;
-  public approvedBy?: string;
-  public approvedAt?: Date;
-  public rejectedReason?: string;
-  public metadata?: Record<string, any>;
-  public expiresAt!: Date;
-  public switchFlowId?: string;
-  public switchJobId?: string;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare jobId: string;
+  declare fileName: string;
+  declare filePath: string;
+  declare customerEmail: string;
+  declare customerName?: string;
+  declare status: 'pending' | 'approved' | 'rejected';
+  declare token: string;
+  declare comments?: string;
+  declare approvedBy?: string;
+  declare approvedAt?: Date;
+  declare rejectedReason?: string;
+  declare metadata?: Record<string, any>;
+  declare expiresAt: Date;
+  declare switchFlowId?: string;
+  declare switchJobId?: string;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 }
 
 Approval.init(

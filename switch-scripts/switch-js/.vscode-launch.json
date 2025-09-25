@@ -1,0 +1,25 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Switch Script",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "protocol": "inspector",
+      "restart": true,
+      "localRoot": "${workspaceFolder}",
+      "remoteRoot": "C:\\Switch Scripts\\ThammApprove-Submit"
+    },
+    {
+      "name": "Debug Local Node",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/submit-approval-debug.js",
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "console": "integratedTerminal"
+    }
+  ]
+}

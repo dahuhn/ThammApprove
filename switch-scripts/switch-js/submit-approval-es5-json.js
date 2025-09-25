@@ -1,4 +1,4 @@
-// Enfocus Switch Script: Submit PDF for Approval (Switch Compatible)
+// Enfocus Switch Script: Submit PDF for Approval (ES5 Compatible + Multipart Upload)
 // This script sends PDF files to the ThammApprove system
 // WICHTIG: Nutzt Named Connections mit ES5-kompatiblem Code!
 // PDF wird an Server gesendet (für Kunde) UND in Switch behalten (für Workflow)
@@ -7,7 +7,7 @@ function jobArrived(s, job) {
     var scriptName = "ThammApprove Submit";
 
     try {
-        // Get configuration from Switch flow element properties
+        // Get configuration from Switch flow element properties (KORREKTE API)
         var apiUrl = s.getPropertyValue("apiUrl") || "http://172.16.0.66:3101";
         job.log(1, scriptName + ": Using API URL: " + apiUrl);  // 1 = Info
         var customerEmail = s.getPropertyValue("customerEmail") || job.getPrivateData("CustomerEmail");
@@ -30,48 +30,36 @@ function jobArrived(s, job) {
         var fileName = job.getName();
         var jobId = job.getName() + "_" + new Date().getTime();
 
-        // Store original filename for later webhook processing
+        job.log(1, scriptName + ": Processing " + fileName + " (Path: " + jobPath + ")");
+
+        // Store original filename for webhook processing
         job.setPrivateData("OriginalFileName", fileName);
 
-        // Prepare metadata
-        var metadata = {
-            submitTime: toISOString(new Date()),
-            switchServer: s.getServerName(),
-            flowName: s.getFlowName(),
-            elementName: s.getElementName(),
-            originalPath: jobPath,
-            jobNumber: job.getJobNumber() || "",
-            priority: job.getPriority() || "Normal"
-        };
-
-        // Add all private data as metadata
-        var privateDataKeys = job.getPrivateDataKeys();
-        for (var i = 0; i < privateDataKeys.length; i++) {
-            var key = privateDataKeys[i];
-            metadata["privateData_" + key] = job.getPrivateData(key);
-        }
-
-        // Submit to API using HTTP multipart
-        job.log(1, scriptName + ": Submitting " + fileName + " for approval");  // 1 = Info
+        // Submit to API using HTTP multipart (PDF muss zum Backend für Anzeige!)
+        job.log(1, scriptName + ": Submitting " + fileName + " for approval");
 
         var http = new HTTP();
-        var url = apiUrl + "/api/approvals/create";
+        var url = apiUrl + "/api/approvals/create";  // ORIGINAL MULTIPART API
 
-        // Create multipart form data
+        // Create multipart form data (PDF wird hochgeladen)
         var formData = new FormData();
         formData.addFile("pdf", jobPath);
         formData.addField("jobId", jobId);
-        formData.addField("fileName", fileName);  // WICHTIG: Original-Dateiname für Webhook
+        formData.addField("fileName", fileName);
         formData.addField("customerEmail", customerEmail);
         formData.addField("customerName", customerName || "");
         formData.addField("switchFlowId", s.getFlowId() || "");
         formData.addField("switchJobId", jobId || "");
-        formData.addField("metadata", JSON.stringify(metadata));
+        formData.addField("metadata", JSON.stringify({
+            submitTime: toISOString(new Date()),
+            originalPath: jobPath
+        }));
 
+        // HTTP POST mit FormData
         http.post(url, formData, function(response) {
             try {
                 if (response.statusCode !== 200) {
-                    job.log(3, scriptName + ": HTTP Error " + response.statusCode + " - " + response.body);  // 3 = Error
+                    job.log(3, scriptName + ": HTTP Error " + response.statusCode + " - " + response.body);
                     routeByName(s, job, errorName, scriptName);
                     return;
                 }
@@ -84,40 +72,37 @@ function jobArrived(s, job) {
                     job.setPrivateData("ApprovalToken", result.token);
                     job.setPrivateData("ApprovalStatus", "pending");
                     job.setPrivateData("ApprovalSubmitTime", toISOString(new Date()));
-                    job.setPrivateData("ServerUploadPath", "/uploads/" + result.approvalId + ".pdf");
 
-                    job.log(1, scriptName + ": Approval created with ID " + result.approvalId);  // 1 = Info
-                    job.log(1, scriptName + ": PDF uploaded to server for customer viewing");  // 1 = Info
-                    job.log(1, scriptName + ": Original PDF waits in Switch folder until webhook processes it");  // 1 = Info
+                    job.log(1, scriptName + ": Approval created with ID " + result.approvalId);
+                    job.log(1, scriptName + ": PDF uploaded to server for customer viewing");
+                    job.log(1, scriptName + ": Original PDF waits in Switch folder until webhook processes it");
 
                     // Send notification if configured
                     if (notificationEmail) {
                         sendNotification(s, job, notificationEmail, result.approvalId);
                     }
 
-                    // IMPORTANT: PDF is now stored in TWO places:
-                    // 1. ThammApprove Server (customer can view/approve in browser)
-                    // 2. Switch Pending Folder (original PDF waits for webhook)
+                    // WICHTIG: PDF bleibt in Switch, nur Metadaten wurden gesendet
                     // Route to Success by NAME → Pending Folder
                     routeByName(s, job, successName, scriptName);
                 } else {
-                    job.log(3, scriptName + ": API returned unsuccessful response");  // 3 = Error
+                    job.log(3, scriptName + ": API returned error: " + (result.error || "Unknown error"));
                     routeByName(s, job, errorName, scriptName);
                 }
 
             } catch (parseError) {
-                job.log(3, scriptName + ": Error parsing API response - " + parseError.message);  // 3 = Error
+                job.log(3, scriptName + ": Parse error - " + String(parseError || "Unknown parse error"));
                 routeByName(s, job, errorName, scriptName);
             }
         });
 
     } catch (error) {
-        job.log(3, scriptName + ": Error submitting approval - " + error.message);  // 3 = Error
+        job.log(3, scriptName + ": Fatal error - " + String(error || "Unknown error"));
         routeByName(s, job, "Error", scriptName);
     }
 }
 
-// Helper function for ES5-compatible ISO date string (toISOString not available)
+// Helper function for ES5-compatible ISO date string
 function toISOString(date) {
     function pad(n) {
         return n < 10 ? '0' + n : n;
@@ -135,7 +120,7 @@ function routeByName(s, job, targetName, scriptName) {
     // Get number of outgoing connections
     var numConnections = s.getOutgoingConnectionCount ? s.getOutgoingConnectionCount() : 10;
 
-    job.log(1, scriptName + ": Looking for connection named '" + targetName + "'");  // 1 = Info (Debug->Info)
+    job.log(1, scriptName + ": Looking for connection named '" + targetName + "'");
 
     // Check each connection by number and get its name
     for (var i = 1; i <= numConnections; i++) {
@@ -143,11 +128,11 @@ function routeByName(s, job, targetName, scriptName) {
             var connectionName = s.getOutgoingName ? s.getOutgoingName(i) : null;
 
             if (connectionName) {
-                job.log(1, scriptName + ": Connection " + i + " is named '" + connectionName + "'");  // 1 = Info (Debug->Info)
+                job.log(1, scriptName + ": Connection " + i + " is named '" + connectionName + "'");
 
                 // Check if this is our target (case-insensitive, trimmed) - ES5 trim
                 if (connectionName.replace(/^\s+|\s+$/g, '').toLowerCase() === targetName.replace(/^\s+|\s+$/g, '').toLowerCase()) {
-                    job.log(1, scriptName + ": Routing to '" + targetName + "' via Connection " + i);  // 1 = Info
+                    job.log(1, scriptName + ": Routing to '" + targetName + "' via Connection " + i);
                     job.sendToData(i);
                     return;
                 }
@@ -159,13 +144,13 @@ function routeByName(s, job, targetName, scriptName) {
 
     // Check special connections
     if (targetName.toLowerCase() === "success") {
-        job.log(1, scriptName + ": Routing to Success connection");  // 1 = Info
+        job.log(1, scriptName + ": Routing to Success connection");
         job.sendToData(Connection.Level.Success);
         return;
     }
 
     if (targetName.toLowerCase() === "error") {
-        job.log(1, scriptName + ": Routing to Error connection");  // 1 = Info
+        job.log(1, scriptName + ": Routing to Error connection");
         job.sendToData(Connection.Level.Error);
         return;
     }
@@ -173,13 +158,13 @@ function routeByName(s, job, targetName, scriptName) {
     // Fallback: Try to parse as number
     var connectionNum = parseInt(targetName, 10);
     if (!isNaN(connectionNum)) {
-        job.log(2, scriptName + ": No connection named '" + targetName + "' found, using number " + connectionNum);  // 2 = Warning
+        job.log(2, scriptName + ": No connection named '" + targetName + "' found, using number " + connectionNum);
         job.sendToData(connectionNum);
         return;
     }
 
     // Ultimate fallback
-    job.log(3, scriptName + ": Could not find connection named '" + targetName + "', using Success");  // 3 = Error
+    job.log(3, scriptName + ": Could not find connection named '" + targetName + "', using Success");
     job.sendToData(Connection.Level.Success);
 }
 
@@ -195,6 +180,6 @@ function sendNotification(s, job, email, approvalId) {
 
         s.sendEmail(email, "Approval Submitted", message);
     } catch (error) {
-        job.log(2, "Failed to send notification: " + error.message);  // 2 = Warning
+        job.log(2, "Failed to send notification: " + String(error || "Unknown error"));
     }
 }

@@ -18,11 +18,11 @@ function jobArrived(s, job) {
         var pendingName = s.getPropertyValue("pendingName") || "Pending";
 
         // Get approval info from private data
-        var jobId = job.getPrivateData("ApprovalId") || job.getUniqueId();
+        var jobId = job.getPrivateData("ApprovalId") || (job.getName() + "_" + new Date().getTime());
         var submitTime = job.getPrivateData("ApprovalSubmitTime");
 
         if (!jobId) {
-            job.log(LogLevel.Error, scriptName + ": No approval ID found");
+            job.log(3, scriptName + ": No approval ID found");  // 3 = Error
             job.sendToData(Connection.Level.Error);
             return;
         }
@@ -31,7 +31,7 @@ function jobArrived(s, job) {
         if (submitTime) {
             var waitTime = (Date.now() - new Date(submitTime).getTime()) / 1000;
             if (waitTime > maxWaitTime) {
-                job.log(LogLevel.Warning, scriptName + ": Max wait time exceeded (" + waitTime + "s > " + maxWaitTime + "s)");
+                job.log(2, scriptName + ": Max wait time exceeded (" + waitTime + "s > " + maxWaitTime + "s)");  // 2 = Warning
                 job.setPrivateData("ApprovalStatus", "timeout");
                 // Route by NAME!
                 routeByName(s, job, timeoutName, scriptName);
@@ -40,7 +40,7 @@ function jobArrived(s, job) {
         }
 
         // Check approval status via HTTP request
-        job.log(LogLevel.Info, scriptName + ": Checking status for job " + jobId);
+        job.log(1, scriptName + ": Checking status for job " + jobId);  // 1 = Info
 
         var http = new HTTP();
         var url = apiUrl + "/api/approvals/status/" + jobId;
@@ -48,7 +48,7 @@ function jobArrived(s, job) {
         http.get(url, function(response) {
             try {
                 if (response.statusCode !== 200) {
-                    job.log(LogLevel.Error, scriptName + ": HTTP Error " + response.statusCode);
+                    job.log(3, scriptName + ": HTTP Error " + response.statusCode);  // 3 = Error
                     routeByName(s, job, pendingName, scriptName);
                     return;
                 }
@@ -57,11 +57,11 @@ function jobArrived(s, job) {
 
                 // Update private data with latest status
                 job.setPrivateData("ApprovalStatus", approval.status);
-                job.setPrivateData("ApprovalLastCheck", new Date().toISOString());
+                job.setPrivateData("ApprovalLastCheck", toISOString(new Date()));
 
                 if (approval.status === 'approved') {
                     // Approval successful
-                    job.log(LogLevel.Info, scriptName + ": Approved by " + (approval.approvedBy || "unknown"));
+                    job.log(1, scriptName + ": Approved by " + (approval.approvedBy || "unknown"));  // 1 = Info
 
                     // Store approval details
                     job.setPrivateData("ApprovedBy", approval.approvedBy || "");
@@ -73,7 +73,7 @@ function jobArrived(s, job) {
 
                 } else if (approval.status === 'rejected') {
                     // Approval rejected
-                    job.log(LogLevel.Warning, scriptName + ": Rejected - " + (approval.rejectedReason || "no reason"));
+                    job.log(2, scriptName + ": Rejected - " + (approval.rejectedReason || "no reason"));  // 2 = Warning
 
                     // Store rejection details
                     job.setPrivateData("RejectedReason", approval.rejectedReason || "");
@@ -84,22 +84,35 @@ function jobArrived(s, job) {
 
                 } else {
                     // Still pending - hold the job
-                    job.log(LogLevel.Info, scriptName + ": Still pending, will check again in " + checkInterval + " seconds");
+                    job.log(1, scriptName + ": Still pending, will check again in " + checkInterval + " seconds");  // 1 = Info
 
                     // Route to Pending by NAME
                     routeByName(s, job, pendingName, scriptName);
                 }
 
             } catch (parseError) {
-                job.log(LogLevel.Error, scriptName + ": Error parsing response - " + parseError.message);
+                job.log(3, scriptName + ": Error parsing response - " + parseError.message);  // 3 = Error
                 routeByName(s, job, pendingName, scriptName);
             }
         });
 
     } catch (error) {
-        job.log(LogLevel.Error, scriptName + ": Error checking status - " + error.message);
+        job.log(3, scriptName + ": Error checking status - " + error.message);  // 3 = Error
         job.sendToData(Connection.Level.Success);
     }
+}
+
+// Helper function for ES5-compatible ISO date string (toISOString not available)
+function toISOString(date) {
+    function pad(n) {
+        return n < 10 ? '0' + n : n;
+    }
+    return date.getFullYear() + '-' +
+        pad(date.getMonth() + 1) + '-' +
+        pad(date.getDate()) + 'T' +
+        pad(date.getHours()) + ':' +
+        pad(date.getMinutes()) + ':' +
+        pad(date.getSeconds()) + 'Z';
 }
 
 // Helper function to route by connection name (ES5 compatible)
@@ -107,7 +120,7 @@ function routeByName(s, job, targetName, scriptName) {
     // Get number of outgoing connections
     var numConnections = s.getOutgoingConnectionCount ? s.getOutgoingConnectionCount() : 10;
 
-    job.log(LogLevel.Debug, scriptName + ": Looking for connection named '" + targetName + "'");
+    job.log(1, scriptName + ": Looking for connection named '" + targetName + "'");  // 1 = Info (Debug->Info)
 
     // Check each connection by number and get its name
     for (var i = 1; i <= numConnections; i++) {
@@ -115,11 +128,11 @@ function routeByName(s, job, targetName, scriptName) {
             var connectionName = s.getOutgoingName ? s.getOutgoingName(i) : null;
 
             if (connectionName) {
-                job.log(LogLevel.Debug, scriptName + ": Connection " + i + " is named '" + connectionName + "'");
+                job.log(1, scriptName + ": Connection " + i + " is named '" + connectionName + "'");  // 1 = Info (Debug->Info)
 
                 // Check if this is our target (case-insensitive, trimmed)
                 if (connectionName.replace(/^\s+|\s+$/g, '').toLowerCase() === targetName.replace(/^\s+|\s+$/g, '').toLowerCase()) {
-                    job.log(LogLevel.Info, scriptName + ": Routing to '" + targetName + "' via Connection " + i);
+                    job.log(1, scriptName + ": Routing to '" + targetName + "' via Connection " + i);  // 1 = Info
                     job.sendToData(i);
                     return;
                 }
@@ -130,7 +143,7 @@ function routeByName(s, job, targetName, scriptName) {
     }
 
     // Fallback to numbered connections if name not found
-    job.log(LogLevel.Warning, scriptName + ": No connection named '" + targetName + "' found, using fallback");
+    job.log(2, scriptName + ": No connection named '" + targetName + "' found, using fallback");  // 2 = Warning
 
     if (targetName.toLowerCase() === "approved") {
         job.sendToData(1); // Connection 1

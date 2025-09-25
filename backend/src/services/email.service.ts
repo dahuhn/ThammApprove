@@ -2,18 +2,48 @@ import nodemailer from 'nodemailer';
 import { Approval } from '../models/Approval.model';
 import { logger } from '../utils/logger';
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: process.env.SMTP_SECURE === 'true',
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS
+// Lazy initialization der SMTP-Konfiguration
+let transporter: any = null;
+
+function getTransporter() {
+  // Force recreate transporter to pick up new .env values
+  if (true) {  // Changed from (!transporter) to force recreation
+    // Debug: Log SMTP configuration when creating transporter
+    logger.info('Creating SMTP transporter with config:', {
+      SMTP_HOST: process.env.SMTP_HOST,
+      SMTP_PORT: process.env.SMTP_PORT,
+      SMTP_USER: process.env.SMTP_USER,
+      SMTP_SECURE: process.env.SMTP_SECURE
+    });
+
+    transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'mail.thamm.de',  // Fallback
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: {
+        user: process.env.SMTP_USER || 'thamm\\switch',  // Fallback
+        pass: process.env.SMTP_PASS || 'switch'          // Fallback
+      }
+    });
+
+    logger.info('SMTP transporter created with host:', transporter.options.host);
   }
-});
+  return transporter;
+}
 
 export async function sendApprovalEmail(approval: Approval) {
   const approvalUrl = `${process.env.FRONTEND_URL}/approve/${approval.token}`;
+
+  logger.info('Preparing to send approval email:', {
+    to: approval.customerEmail,
+    approvalId: approval.id,
+    token: approval.token,
+    approvalUrl
+  });
+
+  if (!approval.token) {
+    throw new Error('Approval token is missing - cannot generate approval URL');
+  }
 
   const mailOptions = {
     from: process.env.EMAIL_FROM || 'noreply@thamm.com',
@@ -48,10 +78,10 @@ export async function sendApprovalEmail(approval: Approval) {
 
             <p>Bitte prüfen Sie die Datei und geben Sie diese frei oder weisen Sie sie zurück:</p>
 
-            <a href="${approvalUrl}" class="button">PDF prüfen und freigeben</a>
+            <a href="${approvalUrl}" class="button" target="_blank" rel="noopener noreferrer">PDF prüfen und freigeben</a>
 
             <div class="warning">
-              <strong>Wichtig:</strong> Dieser Link ist ${process.env.APPROVAL_EXPIRY_DAYS || 7} Tage gültig und läuft am ${approval.expiresAt.toLocaleDateString('de-DE')} ab.
+              <strong>Wichtig:</strong> Dieser Link ist ${process.env.APPROVAL_EXPIRY_DAYS || 7} Tage gültig und läuft am ${approval.expiresAt ? approval.expiresAt.toLocaleDateString('de-DE') : 'unbekannt'} ab.
             </div>
 
             <p>Falls der Button nicht funktioniert, kopieren Sie bitte diesen Link in Ihren Browser:</p>
@@ -87,10 +117,30 @@ export async function sendApprovalEmail(approval: Approval) {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
-    logger.info(`Approval email sent to ${approval.customerEmail} for job ${approval.jobId}`);
+    const smtpTransporter = getTransporter();
+    const info = await smtpTransporter.sendMail(mailOptions);
+    logger.info('Approval email sent successfully:', {
+      to: approval.customerEmail,
+      jobId: approval.jobId,
+      messageId: info.messageId,
+      response: info.response
+    });
   } catch (error) {
-    logger.error('Failed to send approval email:', error);
+    logger.error('Failed to send approval email:', {
+      error: error.message,
+      to: approval.customerEmail,
+      jobId: approval.jobId,
+      smtpConfig: {
+        host: process.env.SMTP_HOST,
+        port: process.env.SMTP_PORT,
+        user: process.env.SMTP_USER
+      },
+      actualTransporterConfig: {
+        host: getTransporter().options.host,
+        port: getTransporter().options.port,
+        user: getTransporter().options.auth?.user
+      }
+    });
     throw error;
   }
 }

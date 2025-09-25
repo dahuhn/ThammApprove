@@ -18,20 +18,67 @@ PDF → Pending Folder → Webhook → Wait for Asset → Sofortige Reaktion (< 
 
 ## ⚠️ WICHTIGE HINWEISE
 
-**Verwenden Sie DIESE Scripts (Switch-kompatibel, ES5, Named Connections):**
+## 🎯 **Script-Versionen für verschiedene Switch-Versionen**
+
+### **Switch 2022 Fall+ (TypeScript Support):** ⭐ **EMPFOHLEN**
+- ✅ **submit-approval.ts** - Moderne TypeScript-Version mit Typisierung
+- ✅ **webhook-json-processor.ts** - JSON-Verarbeitung mit Interface-Definitionen
+- ✅ **check-approval-status.ts** - Status-Check mit Type Safety
+- ✅ **Wait for Asset Tool** (aus Switch Appstore)
+
+### **Switch älter als 2022 (ES5 nur):**
 - ✅ **submit-approval-compatible.js** (Updated mit fileName für Webhook)
-- ✅ **webhook-json-processor.js** ⭐ **NEU - Verarbeitet JSON vom Webhook Element**
+- ✅ **webhook-json-processor.js** (ES5-kompatibel)
 - ✅ **check-approval-status-compatible.js** (Fallback für Polling)
 - ✅ **Wait for Asset Tool** (aus Switch Appstore)
 
 **NICHT diese Scripts verwenden:**
-- ❌ ~~submit-approval.js~~ (modernes JavaScript)
+- ❌ ~~submit-approval.js~~ (alte Version, durch .ts ersetzt)
 - ❌ ~~custom-hold-script.js~~ (zu komplex, nicht nötig)
 - ❌ ~~webhook-receiver-direct.js~~ (Webhook Element kann kein Script enthalten!)
 - ❌ ~~webhook-receiver-*~~ (alle alten Versionen)
-- ❌ ~~*-named.js~~ (moderne JS-Syntax, funktioniert nicht in Switch)
+- ❌ ~~*-named.js~~ (veraltet, durch .ts ersetzt)
 
 ## 📝 Verfügbare Scripts
+
+## 🎯 **TypeScript-Versionen (Switch 2022 Fall+)**
+
+### 1. submit-approval.ts ⭐ **TypeScript**
+**Zweck:** PDF an ThammApprove-System zur Freigabe senden
+- **Eingabe:** PDF von Hot Folder
+- **Ausgabe:** "Success" → Pending Folder, "Error" → Error-Behandlung
+- **Named Connections:** Ja ✅
+- **Type Safety:** Interfaces für Metadata und HTTP-Responses
+- **Moderne Features:** Template Strings, const/let, Optional Chaining
+
+**Properties:**
+- `apiUrl`: URL des ThammApprove Servers (default: http://172.16.0.66:3101)
+- `customerEmail`: E-Mail des Kunden (kann aus Private Data kommen)
+- `customerName`: Name des Kunden (optional)
+- `successName`: Name der Success-Connection (default: "Success")
+- `errorName`: Name der Error-Connection (default: "Error")
+
+### 2. webhook-json-processor.ts ⭐ **TypeScript**
+**Zweck:** JSON vom Webhook Element verarbeiten
+- **Eingabe:** JSON-Datei vom Webhook Element
+- **Verarbeitung:** Extrahiert fileName und status aus JSON mit Type Safety
+- **Ausgabe:** Setzt Private Data für Wait for Asset Tool
+- **Named Connections:** "Approved", "Rejected"
+- **Interface:** WebhookPayload mit typisierten Feldern
+
+**Key Features:**
+- **Type-Safe JSON-Parsing:** Interface-basierte Validierung
+- **Starke Typisierung:** Compile-Time Fehlerprüfung
+- **Moderne Syntax:** Template Strings und Optional Properties
+
+### 3. check-approval-status.ts ⭐ **TypeScript**
+**Zweck:** Periodische Status-Prüfung (nur falls Webhook nicht funktioniert)
+- **Eingabe:** PDFs aus "pending" Folder
+- **Ausgabe:** "Approved", "Rejected", "Pending", "Timeout"
+- **Named Connections:** Ja ✅
+- **Interface:** ApprovalResponse mit typisierten Status-Werten
+
+## 🔧 **ES5-kompatible Versionen (alte Switch-Versionen)**
 
 ### 1. submit-approval-compatible.js
 **Zweck:** PDF an ThammApprove-System zur Freigabe senden

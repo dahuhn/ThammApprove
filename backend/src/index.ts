@@ -11,13 +11,24 @@ import { errorHandler } from './middleware/errorHandler';
 import { rateLimiter } from './middleware/rateLimiter';
 import { cleanupExpiredApprovals } from './services/cleanup.service';
 
-dotenv.config();
+// Explizit .env Pfad setzen
+const envPath = path.join(__dirname, '../.env');
+const envResult = dotenv.config({ path: envPath });
+
+if (envResult.error) {
+  console.error('Failed to load .env file:', envResult.error);
+  process.exit(1);
+}
+
+console.log('Environment loaded from:', envPath);
+console.log('SMTP_HOST from .env:', process.env.SMTP_HOST);
 
 const app = express();
 const PORT = process.env.PORT || 3101;
 
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  frameguard: false  // Deaktiviert X-Frame-Options komplett
 }));
 app.use(cors({
   origin: [
@@ -33,11 +44,23 @@ app.use(rateLimiter);
 
 app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
 
+// Serve static frontend files (production build)
+app.use(express.static(path.join(__dirname, '../../frontend/build')));
+
 app.use('/api/approvals', approvalRoutes);
 app.use('/api/webhook', webhookRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Catch all handler: send back React's index.html file for any non-API routes
+app.get('*', (req, res) => {
+  if (!req.path.startsWith('/api/') && !req.path.startsWith('/uploads/') && req.path !== '/health') {
+    res.sendFile(path.join(__dirname, '../../frontend/build', 'index.html'));
+  } else {
+    res.status(404).json({ error: 'Endpoint not found' });
+  }
 });
 
 app.use(errorHandler);

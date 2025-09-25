@@ -7,7 +7,7 @@ import { logger } from '../utils/logger';
 interface CreateApprovalData {
   jobId: string;
   fileName: string;
-  filePath: string;
+  filePath: string | null;  // NULL für Switch-only Approvals
   customerEmail: string;
   customerName?: string;
   switchFlowId?: string;
@@ -24,20 +24,48 @@ interface UpdateApprovalData {
 }
 
 export async function createApproval(data: CreateApprovalData) {
+  logger.info('Creating approval with data:', data);
+
+  // JWT Secret prüfen
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET environment variable is not set');
+  }
+
   const token = jwt.sign(
     { jobId: data.jobId, type: 'approval' },
     process.env.JWT_SECRET!,
     { expiresIn: `${process.env.APPROVAL_EXPIRY_DAYS || 7}d` }
   );
 
+  logger.info('JWT token generated:', {
+    tokenLength: token.length,
+    tokenStart: token.substring(0, 20) + '...'
+  });
+
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + parseInt(process.env.APPROVAL_EXPIRY_DAYS || '7'));
 
-  const approval = await Approval.create({
+  const createData = {
     ...data,
     token,
     expiresAt,
     status: 'pending'
+  };
+
+  logger.info('Data being sent to Approval.create:', {
+    jobId: createData.jobId,
+    hasToken: !!createData.token,
+    tokenLength: createData.token?.length,
+    status: createData.status
+  });
+
+  const approval = await Approval.create(createData);
+
+  logger.info('Approval created in database:', {
+    id: approval.id,
+    jobId: approval.jobId,
+    hasTokenAfterCreate: !!approval.token,
+    tokenInDb: approval.token ? approval.token.substring(0, 20) + '...' : 'NULL'
   });
 
   logger.info(`Approval created for job ${data.jobId}`);
