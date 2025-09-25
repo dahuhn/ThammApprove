@@ -11,7 +11,7 @@ function jobArrived(s, job) {
         job.log(1, scriptName + ": Using API URL: " + apiUrl);  // 1 = Info
         var customerEmail = s.getPropertyValue("customerEmail") || job.getPrivateData("CustomerEmail");
         var customerName = s.getPropertyValue("customerName") || job.getPrivateData("CustomerName");
-        var notificationEmail = s.getPropertyValue("notificationEmail");
+        // notificationEmail nicht nötig - Backend verschickt E-Mails
 
         job.log(1, scriptName + ": Customer Email: " + (customerEmail || "NOT SET"));
         job.log(1, scriptName + ": Customer Name: " + (customerName || "NOT SET"));
@@ -99,7 +99,11 @@ function jobArrived(s, job) {
 
         // Response verarbeiten
         try {
-            if (statusCode !== 200) {
+            // Switch gibt "Ok" oder 200 bei Erfolg zurück
+            var statusString = String(statusCode).toLowerCase();
+            var isSuccess = (statusString === "ok" || statusCode === 200 || statusCode === "200");
+
+            if (!isSuccess) {
                 job.log(3, scriptName + ": HTTP Error " + statusCode + " - " + responseString);
                 routeByName(s, job, errorName, scriptName);
                 return;
@@ -124,28 +128,29 @@ function jobArrived(s, job) {
                     job.log(1, scriptName + ": PDF uploaded via Switch HTTP API");
                     job.log(1, scriptName + ": Original PDF waits in Switch folder until webhook processes it");
 
-                    // Send notification if configured
-                    if (notificationEmail) {
-                        sendNotification(s, job, notificationEmail, result.approvalId);
-                    }
+                    // Backend sends approval emails automatically - no need for Switch notification
 
                     // Route to Success by NAME → Pending Folder
                     routeByName(s, job, successName, scriptName);
+                    return; // WICHTIG: Beende hier, um doppeltes Routing zu verhindern!
                 } else {
                     job.log(3, scriptName + ": API returned unsuccessful response");  // 3 = Error
                     routeByName(s, job, errorName, scriptName);
+                    return; // WICHTIG: Beende hier, um doppeltes Routing zu verhindern!
                 }
 
         } catch (parseError) {
             // SAFE ERROR HANDLING - kein Property-Zugriff
             job.log(3, scriptName + ": Error parsing API response - " + String(parseError || "Parse failed"));
             routeByName(s, job, errorName, scriptName);
+            return; // KRITISCH: Verhindert doppeltes Routing!
         }
 
     } catch (error) {
         // SAFE ERROR HANDLING - kein Property-Zugriff
         job.log(3, scriptName + ": Error submitting approval - " + String(error || "Unknown error"));
         routeByName(s, job, "Error", scriptName);
+        return; // KRITISCH: Verhindert doppeltes Routing!
     }
 }
 
@@ -171,7 +176,7 @@ function routeByName(s, job, targetName, scriptName) {
 
     if (targetName.toLowerCase() === "error") {
         job.log(1, scriptName + ": Routing to Error connection");
-        job.sendToData(2, jobPath, "");  // sendToData(int, QString, QString)
+        job.sendToData(3, jobPath, "");  // sendToData(int, QString, QString) - Error = 3
         return;
     }
 
@@ -184,23 +189,8 @@ function routeByName(s, job, targetName, scriptName) {
     }
 
     // Ultimate fallback
-    job.log(2, scriptName + ": Could not find connection named '" + targetName + "', using Success");
+    job.log(3, scriptName + ": Could not find connection named '" + targetName + "', using Success");
     job.sendToData(1, jobPath, "");  // sendToData(int, QString, QString)
 }
 
-function sendNotification(s, job, email, approvalId) {
-    try {
-        var message = "PDF approval submitted:\n" +
-            "File: " + job.getName() + "\n" +
-            "Job ID: " + job.getName() + "\n" +
-            "Approval ID: " + approvalId + "\n" +
-            "Time: " + new Date().toLocaleString() + "\n\n" +
-            "Note: PDF uploaded to server for customer review.\n" +
-            "Original PDF remains in Switch workflow for processing.";
-
-        s.sendEmail(email, "Approval Submitted", message);
-    } catch (error) {
-        // SAFE ERROR HANDLING
-        job.log(2, "Failed to send notification: " + String(error || "Notification failed"));
-    }
-}
+// sendNotification entfernt - Backend verschickt E-Mails automatisch

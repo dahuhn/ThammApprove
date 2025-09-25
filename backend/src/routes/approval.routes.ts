@@ -8,7 +8,14 @@ import { WebhookService } from '../services/webhookService';
 import { logger } from '../utils/logger';
 
 const router = Router();
-const webhookService = new WebhookService();
+let webhookService: WebhookService | null = null;
+
+function getWebhookService(): WebhookService {
+  if (!webhookService) {
+    webhookService = new WebhookService();
+  }
+  return webhookService;
+}
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -394,7 +401,7 @@ router.post('/approve/:token', async (req, res) => {
     // Send webhook to Switch immediately
     if (updated) {
       try {
-        const webhookSent = await webhookService.sendToSwitch(updated);
+        const webhookSent = await getWebhookService().sendToSwitch(updated);
         if (webhookSent) {
           logger.info(`✅ Webhook sent to Switch for approved job ${updated.jobId}`);
         } else {
@@ -442,7 +449,7 @@ router.post('/reject/:token', async (req, res) => {
     // Send webhook to Switch immediately
     if (updated) {
       try {
-        const webhookSent = await webhookService.sendToSwitch(updated);
+        const webhookSent = await getWebhookService().sendToSwitch(updated);
         if (webhookSent) {
           logger.info(`✅ Webhook sent to Switch for rejected job ${updated.jobId}`);
         } else {
@@ -466,8 +473,8 @@ router.post('/reject/:token', async (req, res) => {
 // Test endpoint for webhook connectivity
 router.get('/webhook/test', async (req, res) => {
   try {
-    const result = await webhookService.testConnection();
-    const config = webhookService.getConfig();
+    const result = await getWebhookService().testConnection();
+    const config = getWebhookService().getConfig();
 
     res.json({
       webhookTest: result,

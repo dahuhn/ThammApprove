@@ -28,7 +28,13 @@ const PORT = process.env.PORT || 3101;
 
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
-  frameguard: false  // Deaktiviert X-Frame-Options komplett
+  frameguard: false,  // Deaktiviert X-Frame-Options komplett
+  contentSecurityPolicy: {
+    directives: {
+      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+      "frame-ancestors": ["*"]  // Erlaubt einbetten von allen Domains
+    }
+  }
 }));
 app.use(cors({
   origin: [
