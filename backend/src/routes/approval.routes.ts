@@ -3,7 +3,9 @@ import multer from 'multer';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { createApproval, getApproval, updateApprovalStatus, getApprovalByToken } from '../services/approval.service';
-import { sendApprovalEmail } from '../services/email.service';
+import { sendApprovalEmail, sendOrderCollectionEmail } from '../services/email.service';
+import { Order } from '../models/Order.model';
+import { Approval } from '../models/Approval.model';
 import { WebhookService } from '../services/webhookService';
 import { logger } from '../utils/logger';
 
@@ -79,14 +81,18 @@ router.post('/create', flexibleUpload.any(), async (req, res) => {
       customerName,
       switchFlowId,
       switchJobId,
-      metadata
+      metadata,
+      // Order Collection Parameters
+      orderNumber,
+      material,
+      positionNumber
     } = req.body;
 
     if (!jobId || !customerEmail) {
       return res.status(400).json({ error: 'JobId and customerEmail are required' });
     }
 
-    const approval = await createApproval({
+    const { approval, shouldSendEmail } = await createApproval({
       jobId,
       fileName: fileName || pdfFile.originalname,  // Use Switch filename if provided
       filePath: pdfFile.path,  // Multer managed file path
@@ -94,7 +100,11 @@ router.post('/create', flexibleUpload.any(), async (req, res) => {
       customerName,
       switchFlowId,
       switchJobId,
-      metadata: metadata ? JSON.parse(metadata) : {}
+      metadata: metadata ? JSON.parse(metadata) : {},
+      // Order Collection Parameters
+      orderNumber,
+      material,
+      positionNumber: positionNumber ? parseInt(positionNumber, 10) : undefined
     });
 
     // Debug: Prüfe Approval-Objekt direkt nach Erstellung
@@ -118,12 +128,59 @@ router.post('/create', flexibleUpload.any(), async (req, res) => {
       logger.error('Failed to reload approval:', reloadError.message);
     }
 
-    // E-Mail-Versand (optional - falls SMTP nicht konfiguriert)
+    // E-Mail-Versand mit Order Collection Support
     try {
-      await sendApprovalEmail(approval);
-      logger.info('Approval email sent successfully');
+      if (approval.orderNumber && shouldSendEmail) {
+        logger.info('Attempting to send order collection email for:', {
+          orderNumber: approval.orderNumber,
+          approvalId: approval.id
+        });
+
+        // Send order collection email for the FIRST file in an order
+        const order = await Order.findOne({
+          where: { orderNumber: approval.orderNumber },
+          include: [{ model: Approval, as: 'approvals' }]
+        });
+
+        logger.info('Order query result:', {
+          found: !!order,
+          orderNumber: approval.orderNumber,
+          approvalCount: order?.approvals?.length || 0
+        });
+
+        if (order) {
+          // Sicherstellen, dass Approvals geladen sind
+          const approvals = order.approvals && order.approvals.length > 0
+            ? order.approvals
+            : [approval]; // Fallback zu aktueller Approval
+
+          logger.info('About to call sendOrderCollectionEmail with:', {
+            orderNumber: order.orderNumber,
+            customerEmail: order.customerEmail,
+            approvalCount: approvals.length
+          });
+
+          await sendOrderCollectionEmail(order, approvals);
+          logger.info('Order collection email sent for order:', {
+            orderNumber: approval.orderNumber,
+            customerEmail: approval.customerEmail,
+            approvalCount: approvals.length
+          });
+        } else {
+          logger.error('Order not found for approval:', {
+            orderNumber: approval.orderNumber,
+            approvalId: approval.id
+          });
+        }
+      } else if (!approval.orderNumber) {
+        // Send individual email for non-order approvals
+        await sendApprovalEmail(approval);
+        logger.info('Individual approval email sent');
+      } else {
+        logger.info('Email skipped due to throttling for order:', approval.orderNumber);
+      }
     } catch (emailError) {
-      logger.warn('Failed to send approval email:', {
+      logger.warn('Failed to send email:', {
         error: emailError.message,
         approvalId: approval.id,
         customerEmail: approval.customerEmail
@@ -134,7 +191,9 @@ router.post('/create', flexibleUpload.any(), async (req, res) => {
     res.json({
       success: true,
       approvalId: approval.id,
-      token: approval.token
+      token: approval.token,
+      shouldSendEmail: shouldSendEmail !== undefined ? shouldSendEmail : true,
+      orderNumber: approval.orderNumber || null
     });
   } catch (error) {
     logger.error('Error creating approval:', {

@@ -6,10 +6,12 @@ import path from 'path';
 import { sequelize } from './database/connection';
 import { logger } from './utils/logger';
 import approvalRoutes from './routes/approval.routes';
+import orderRoutes from './routes/order.routes';
 import webhookRoutes from './routes/webhook.routes';
 import { errorHandler } from './middleware/errorHandler';
 import { rateLimiter } from './middleware/rateLimiter';
 import { cleanupExpiredApprovals } from './services/cleanup.service';
+import { setupAssociations } from './models/associations';
 
 // Explizit .env Pfad setzen
 const envPath = path.join(__dirname, '../.env');
@@ -54,6 +56,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
 app.use(express.static(path.join(__dirname, '../../frontend/build')));
 
 app.use('/api/approvals', approvalRoutes);
+app.use('/api/orders', orderRoutes);
 app.use('/api/webhook', webhookRoutes);
 
 app.get('/health', (req, res) => {
@@ -73,10 +76,15 @@ app.use(errorHandler);
 
 async function startServer() {
   try {
+    // Setup database associations first
+    setupAssociations();
+    logger.info('Database associations setup');
+
     await sequelize.authenticate();
     logger.info('Database connection established');
 
-    await sequelize.sync({ alter: true });
+    // TEMPORARY: Force recreate database to add orderToken column - RESTART NOW
+    await sequelize.sync({ alter: false, force: true });
     logger.info('Database synchronized');
 
     setInterval(cleanupExpiredApprovals,

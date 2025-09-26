@@ -1,4 +1,4 @@
-import { DataTypes, Model, Optional } from 'sequelize';
+import { DataTypes, Model, Optional, BelongsToGetAssociationMixin, Association } from 'sequelize';
 import { sequelize } from '../database/connection';
 
 export interface ApprovalAttributes {
@@ -13,11 +13,18 @@ export interface ApprovalAttributes {
   comments?: string;
   approvedBy?: string;
   approvedAt?: Date;
+  rejectedBy?: string;
+  rejectedAt?: Date;
   rejectedReason?: string;
   metadata?: Record<string, any>;
   expiresAt: Date;
   switchFlowId?: string;
   switchJobId?: string;
+  // NEW: Order Collection Fields
+  orderNumber?: string;
+  orderId?: string;
+  material?: string;
+  positionNumber?: number;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -36,13 +43,28 @@ export class Approval extends Model<ApprovalAttributes, ApprovalCreationAttribut
   declare comments?: string;
   declare approvedBy?: string;
   declare approvedAt?: Date;
+  declare rejectedBy?: string;
+  declare rejectedAt?: Date;
   declare rejectedReason?: string;
   declare metadata?: Record<string, any>;
   declare expiresAt: Date;
   declare switchFlowId?: string;
   declare switchJobId?: string;
+  // NEW: Order Collection Fields
+  declare orderNumber?: string;
+  declare orderId?: string;
+  declare material?: string;
+  declare positionNumber?: number;
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
+
+  // Association mixins
+  declare getOrder: BelongsToGetAssociationMixin<any>; // Will import Order type later
+
+  // Associations
+  declare static associations: {
+    order: Association<Approval, any>; // Will type properly later
+  };
 }
 
 Approval.init(
@@ -98,6 +120,14 @@ Approval.init(
       type: DataTypes.DATE,
       allowNull: true
     },
+    rejectedBy: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    rejectedAt: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
     rejectedReason: {
       type: DataTypes.TEXT,
       allowNull: true
@@ -118,6 +148,36 @@ Approval.init(
     switchJobId: {
       type: DataTypes.STRING,
       allowNull: true
+    },
+    // NEW: Order Collection Fields
+    orderNumber: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      validate: {
+        notEmpty: true
+      }
+    },
+    orderId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'orders',
+        key: 'id'
+      }
+    },
+    material: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      validate: {
+        notEmpty: true
+      }
+    },
+    positionNumber: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      validate: {
+        min: 1
+      }
     }
   },
   {
@@ -128,7 +188,14 @@ Approval.init(
       { fields: ['token'] },
       { fields: ['jobId'] },
       { fields: ['status'] },
-      { fields: ['expiresAt'] }
+      { fields: ['expiresAt'] },
+      // NEW: Order Collection Indexes
+      { fields: ['orderNumber'] },
+      { fields: ['orderId'] },
+      { fields: ['material'] },
+      { fields: ['positionNumber'] },
+      { fields: ['orderNumber', 'positionNumber'] },
+      { fields: ['orderNumber', 'material'] }
     ]
   }
 );
